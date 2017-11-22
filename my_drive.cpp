@@ -1,7 +1,7 @@
 /* Trabalho final da disciplina de Organização de Arquivos
 	UNB 2017
 	Andrey Emmanuel Matrosov Mazépas - 16/0112362
-	Cristiane  seu sobrenome - sua matricula
+	Cristiane Naves Cardos           - 15/0008023
 
 	pelo que eu entendi a representação geral do hd seria assim
 	o conteudo no caso sao setores.
@@ -36,9 +36,11 @@
 */
 
 
-#include <bits/stdc++.h>
+//#include <bits/stdc++.h>
 #include <fstream>
 #include <unistd.h>
+#include <stdlib.h>	
+#include <string.h>
 
 //usleep utiliza microsegundos
 #define T_SEEK_MEDIO 4000
@@ -53,7 +55,7 @@
 #define CLUSTER_BYTES 2048
 #define TOTAL_SETORES (TRILHAS_SUPERF * TRILHAS_CILINDRO * SETORES_TRILHA)	
 
-typedef struct block { unsigned char bytes_s[512]; } block; //menor unidade de armazenamento
+typedef struct block { char bytes_s[512]; } block; //menor unidade de armazenamento
 typedef struct sector_array { block sector[60]; } sector_array; //uma trilha, 60 setores com 1 bloco cada (?)
 typedef struct track_array { sector_array track[5]; } track_array; //um cilindro
 
@@ -76,39 +78,79 @@ typedef struct Fat {
 } Fat;
 
 Fat fat;
-track_array *cylinder;
+track_array cilindros[10];
+int total_cilindros;
+
+//int disponivel_proximo_setor(){}
+
+//retorna a pocisao do cilindro(setor) que esta livre, de acordo com a tabela FAT 
+int buscar_setor_disponivel(){
+	int setor = 0;
+	for(int i = 0; i < TOTAL_SETORES; i++){
+		if(fat.setores[i].used == 0){
+			setor = i;
+			break;
+		}
+	}
+	//index do setor no cilindro
+	return setor * 512;
+}
+
+void calcularPos(int *pos_cilindro, int *pos_trilha, int *pos_setor){
+	int resto;
+	*pos_cilindro = (int)*pos_setor/(TRILHAS_CILINDRO * SETORES_TRILHA * SETOR_BYTES);
+	resto = *pos_setor % (TRILHAS_CILINDRO * SETORES_TRILHA * SETOR_BYTES);
+	*pos_trilha = resto/(SETORES_TRILHA * SETOR_BYTES);
+	resto = resto%(SETORES_TRILHA * SETOR_BYTES);
+	*pos_setor = resto/SETOR_BYTES;
+
+}
 
 //A funcao de escrita deve pedir um nome de arquivo .TXT na pasta onde esta sendo executado o programa e escrever no hd virtual
 int write(){
-	std::string NOME_ARQUIVO;
-	std::ifstream ARQUIVO;
-	printf("Digite o nome do arquivo terminado em .txt da pasta raiz do programa:\n");
-	std::cin >> NOME_ARQUIVO;
-	std::cin.ignore(); //limpa o buffer de entrada
-	
-	std::cout << "Abrindo arquivo: " << NOME_ARQUIVO << std::endl;
-	ARQUIVO.open(NOME_ARQUIVO.c_str(), std::fstream::in);
+	int *p_cilindro, *p_trilha, *p_setor;
+	int pos_setor = 0;   //index do setor no cilindro
+	int pos_FAT = 0;    //index do setor na FAT
+    char nome_arquivo[100];
+    FILE *arq;
 
-	if (!ARQUIVO){
-		std::cout << "Nao foi possivel abrir o arquivo " << NOME_ARQUIVO << ", verifique o nome ou se o arquivo esta aberto em outro programa." << std::endl;
-		std::cout << "Pressione Enter para voltar ao menu principal" << std::endl;
-		std::cin.get();
-		return 0; //volta pro menu principal
+    printf("Qual o nome do arquivo (.txt):\n");
+    scanf("%s", nome_arquivo);
+
+    arq = fopen(nome_arquivo, "rt");
+    if(arq == NULL){
+    	printf("Arquivo invalido\n");
+    	return 0;
+    }
+
+	pos_setor = buscar_setor_disponivel();
+	
+	fat.lista_arquivos = (fatlist*)realloc(fat.lista_arquivos, sizeof(fatlist));
+	strcpy(fat.lista_arquivos[fat.total_arquivos].file_name, nome_arquivo);
+	fat.lista_arquivos[fat.total_arquivos].first_sector = pos_setor/512;
+	fat.total_arquivos++;
+
+	while(!feof(arq)){
+		//pego 512 bytes do arquivo e escrevo no cilindro
+		calcularPos(p_cilindro, p_trilha, p_setor);
+		fgets(cilindros[*p_cilindro].track[*p_trilha].sector[*p_trilha].bytes_s, 512, arq);
+		
+		pos_FAT = pos_setor/512;
+		if(!feof(arq)){
+			//vejo se o proximo setor esta sendo utilizado
+			if(fat.setores[pos_FAT + 1].used == 1){
+				pos_setor = buscar_setor_disponivel();
+			}
+			else{
+				pos_setor = (pos_FAT + 1) * 512;
+			}
+			fat.setores[pos_FAT].next = pos_setor/512;
+			fat.setores[pos_FAT].used = 1;
+		}
 	}
-
-	std::cout << "Arquivo aberto com sucesso." << std::endl;
-
-
-	/*char ch;
-	while( ARQUIVO >> std::noskipws >> ch) //noskipws: no skip white space, nao ignora os espacos em branco do arquivo
-		std::cout << ch;
-	std::cout << std::endl;
-	
-	cylinder = &cylinder1; 
-
-	ARQUIVO.close();
-	std::cout << "Pressione Enter para voltar ao menu principal" << std::endl;
-	std::cin.get();*/
+	fat.setores[pos_FAT].used = 1;
+	fat.setores[pos_FAT].eof = 1;
+	fclose(arq);
 	return 1;
 }
 
@@ -152,6 +194,7 @@ int menu(){
 			break;
 		}
 		case(5):{
+			free(fat.lista_arquivos);
 			return 0;
 		}
 		default:{
