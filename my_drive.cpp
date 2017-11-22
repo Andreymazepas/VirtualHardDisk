@@ -129,11 +129,14 @@ int write(){
 	strcpy(fat.lista_arquivos[fat.total_arquivos].file_name, nome_arquivo);
 	fat.lista_arquivos[fat.total_arquivos].first_sector = pos_setor/512;
 	fat.total_arquivos++;
+   
 
 	while(!feof(arq)){
 		//pego 512 bytes do arquivo e escrevo no cilindro
-		calcularPos(p_cilindro, p_trilha, p_setor);
-		fgets(cilindros[*p_cilindro].track[*p_trilha].sector[*p_trilha].bytes_s, 512, arq);
+		
+		//	calcularPos(p_cilindro, p_trilha, p_setor);
+		//fgets(cilindros[*p_cilindro].track[*p_trilha].sector[*p_trilha].bytes_s, 512, arq);
+		fgets(cilindros[0].track[0].sector[0].bytes_s, 512, arq);
 		
 		pos_FAT = pos_setor/512;
 		if(!feof(arq)){
@@ -147,10 +150,12 @@ int write(){
 			fat.setores[pos_FAT].next = pos_setor/512;
 			fat.setores[pos_FAT].used = 1;
 		}
+		
 	}
 	fat.setores[pos_FAT].used = 1;
 	fat.setores[pos_FAT].eof = 1;
 	fclose(arq);
+	printf("%s\n", cilindros[0].track[0].sector[0].bytes_s);
 	return 1;
 }
 
