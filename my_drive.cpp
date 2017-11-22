@@ -51,23 +51,32 @@
 #define SETOR_BYTES 512
 #define CLUSTER_SETORES 4
 #define CLUSTER_BYTES 2048
+#define TOTAL_SETORES (TRILHAS_SUPERF * TRILHAS_CILINDRO * SETORES_TRILHA)	
 
 typedef struct block { unsigned char bytes_s[512]; } block; //menor unidade de armazenamento
 typedef struct sector_array { block sector[60]; } sector_array; //uma trilha, 60 setores com 1 bloco cada (?)
 typedef struct track_array { sector_array track[5]; } track_array; //um cilindro
+
 typedef struct fatlist_s {
-char file_name[100];
-unsigned int first_sector;
+	char file_name[100];
+	unsigned int first_sector;
 } fatlist; //conteudo da tabela FAT contendo nome e primeiro setor do arquivo
 
 typedef struct fatent_s {
-unsigned int used;
-unsigned int eof;
-unsigned int next;
+	unsigned int used;
+	unsigned int eof;
+	unsigned int next;
 } fatent; //flags que identificam cada setor
 
-//sao declarados um ponteiro que vai apontar pro cilindro sendo utilizado e todos os 5 cilindros
-track_array *cylinder, cylinder1,cylinder2,cylinder3,cylinder4,cylinder5;
+//a FAT indica se o setor esta ocupado ou nao e a posicao do primeiro setor de cada arquivo
+typedef struct Fat {
+	int total_arquivos;
+	fatlist *lista_arquivos;
+	fatent setores[TOTAL_SETORES];
+} Fat;
+
+Fat fat;
+track_array *cylinder;
 
 //A funcao de escrita deve pedir um nome de arquivo .TXT na pasta onde esta sendo executado o programa e escrever no hd virtual
 int write(){
@@ -89,7 +98,8 @@ int write(){
 
 	std::cout << "Arquivo aberto com sucesso." << std::endl;
 
-	char ch;
+
+	/*char ch;
 	while( ARQUIVO >> std::noskipws >> ch) //noskipws: no skip white space, nao ignora os espacos em branco do arquivo
 		std::cout << ch;
 	std::cout << std::endl;
@@ -98,8 +108,8 @@ int write(){
 
 	ARQUIVO.close();
 	std::cout << "Pressione Enter para voltar ao menu principal" << std::endl;
-	std::cin.get();
-	return 0;
+	std::cin.get();*/
+	return 1;
 }
 
 int read(){
