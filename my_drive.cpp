@@ -160,16 +160,41 @@ int write(){
 	return 1;
 }
 
+void ler_arquivo(int i){
+	int eof = 0;
+	int p_cilindro, p_trilha, p_setor;
+	FILE *arq;
+
+	arq = fopen("SAIDA.TXT", "w");
+	do{
+		calcularPos(&p_cilindro, &p_trilha, &p_setor, i * 512);
+		fputs(cilindros[p_cilindro].track[p_trilha].sector[p_setor].bytes_s, arq);
+		//leio o cilindro da posição i*512
+		if(fat.setores[i].eof != 1)
+			i = fat.setores[i].next;
+		else
+			eof = 1;
+
+	} while(eof == 0);
+	fclose(arq);
+}
+
 int read(){
 	char nome_arquivo[100];
 	printf("Qual arquivo ler:\n");
 	scanf("%s", nome_arquivo);
 
-	for(int i = 0; i < fat.total_arquivos; i++){
-		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo)){
+	printf("File name: %s\n", fat.lista_arquivos[0].file_name);
+	printf("nome_arquivo: %s\n", nome_arquivo);
 
+	for(int i = 0; i < fat.total_arquivos; i++){
+		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo) == 0){
+			ler_arquivo(i);
+			return 1;
 		}
 	}
+	printf("Arquivo invalido\n");
+	return 0;
 }
 
 /*ideia para a implementação do erase*/
@@ -180,7 +205,7 @@ int erase(){
 	scanf("%s", nome_arquivo);
 
 	for(int i = 0; i < fat.total_arquivos; i++){
-		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo)){ //comparar essas duas palavras -> está dando erro
+		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo) == 0){ //comparar essas duas palavras -> está dando erro
 			apagar_arquivo(i);
 			return 1;
 		}
