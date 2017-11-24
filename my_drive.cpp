@@ -54,6 +54,7 @@
 #define CLUSTER_SETORES 4
 #define CLUSTER_BYTES 2048
 #define TOTAL_SETORES (TRILHAS_SUPERF * TRILHAS_CILINDRO * SETORES_TRILHA)	
+#define MAX_ARQUIVOS 100
 
 typedef struct block { char bytes_s[512]; } block; //menor unidade de armazenamento
 typedef struct sector_array { block sector[60]; } sector_array; //uma trilha, 60 setores com 1 bloco cada (?)
@@ -73,15 +74,12 @@ typedef struct fatent_s {
 //a FAT indica se o setor esta ocupado ou nao e a posicao do primeiro setor de cada arquivo
 typedef struct Fat {
 	int total_arquivos;
-	fatlist *lista_arquivos;
+	fatlist lista_arquivos[MAX_ARQUIVOS];
 	fatent setores[TOTAL_SETORES];
 } Fat;
 
 Fat fat;
 track_array cilindros[10];
-int total_cilindros;
-
-//int disponivel_proximo_setor(){}
 
 //retorna a pocisao do cilindro(setor) que esta livre, de acordo com a tabela FAT 
 int buscar_setor_disponivel(){
@@ -96,19 +94,19 @@ int buscar_setor_disponivel(){
 	return setor * 512;
 }
 
-void calcularPos(int *pos_cilindro, int *pos_trilha, int *pos_setor){
+void calcularPos(int *p_cilindro, int *p_trilha, int *p_setor, int pos_bytes){
 	int resto;
-	*pos_cilindro = (int)*pos_setor/(TRILHAS_CILINDRO * SETORES_TRILHA * SETOR_BYTES);
-	resto = *pos_setor % (TRILHAS_CILINDRO * SETORES_TRILHA * SETOR_BYTES);
-	*pos_trilha = resto/(SETORES_TRILHA * SETOR_BYTES);
-	resto = resto%(SETORES_TRILHA * SETOR_BYTES);
-	*pos_setor = resto/SETOR_BYTES;
+	*p_cilindro = (int)(pos_bytes/(TRILHAS_CILINDRO * SETORES_TRILHA * SETOR_BYTES));
+	resto = pos_bytes % (TRILHAS_CILINDRO * SETORES_TRILHA * SETOR_BYTES);
+	*p_trilha = (int)(resto/(SETORES_TRILHA * SETOR_BYTES));
+	resto = resto % (SETORES_TRILHA * SETOR_BYTES);
+	*p_setor = (int)(resto/SETOR_BYTES);
 
 }
 
 //A funcao de escrita deve pedir um nome de arquivo .TXT na pasta onde esta sendo executado o programa e escrever no hd virtual
 int write(){
-	int *p_cilindro, *p_trilha, *p_setor;
+	int p_cilindro, p_trilha, p_setor;
 	int pos_setor = 0;   //index do setor no cilindro
 	int pos_FAT = 0;    //index do setor na FAT
     char nome_arquivo[100];
@@ -124,8 +122,8 @@ int write(){
     }
 
 	pos_setor = buscar_setor_disponivel();
+	printf("Pos setor: %d\n", pos_setor);
 	
-	fat.lista_arquivos = (fatlist*)realloc(fat.lista_arquivos, sizeof(fatlist));
 	strcpy(fat.lista_arquivos[fat.total_arquivos].file_name, nome_arquivo);
 	fat.lista_arquivos[fat.total_arquivos].first_sector = pos_setor/512;
 	fat.total_arquivos++;
@@ -134,9 +132,9 @@ int write(){
 	while(!feof(arq)){
 		//pego 512 bytes do arquivo e escrevo no cilindro
 		
-		//	calcularPos(p_cilindro, p_trilha, p_setor);
-		//fgets(cilindros[*p_cilindro].track[*p_trilha].sector[*p_trilha].bytes_s, 512, arq);
-		fgets(cilindros[0].track[0].sector[0].bytes_s, 512, arq);
+		calcularPos(&p_cilindro, &p_trilha, &p_setor, pos_setor);
+		fgets(cilindros[p_cilindro].track[p_trilha].sector[p_trilha].bytes_s, 512, arq);
+		//fgets(cilindros[0].track[0].sector[0].bytes_s, 512, arq);
 		
 		pos_FAT = pos_setor/512;
 		if(!feof(arq)){
@@ -155,7 +153,10 @@ int write(){
 	fat.setores[pos_FAT].used = 1;
 	fat.setores[pos_FAT].eof = 1;
 	fclose(arq);
-	printf("%s\n", cilindros[0].track[0].sector[0].bytes_s);
+	printf("0: %d\n", fat.setores[0].used);
+	printf("1: %d\n", fat.setores[1].used);
+	printf("2: %d\n", fat.setores[2].used);
+	//printf("%s\n", cilindros[0].track[0].sector[0].bytes_s);
 	return 1;
 }
 
@@ -165,8 +166,32 @@ int read(){
 	return 0;
 }
 
+/*ideia para a implementação do erase*/
 int erase(){
-	printf("apagado\n");
+	char nome_arquivo[100];
+
+	printf("Qual arquivo apagar? \n");
+	scanf("%s", nome_arquivo);
+
+	for(int i = 0; i < fat.total_arquivos; i++){
+		if(fat.lista_arquivos[i] == nome_arquivo){ //comparar essas duas palavras -> está dando erro
+			apagar_arquivo(i);
+			return 1;
+		}
+	}
+	printf("Arquivo invalido\n");
+	return 0;
+
+	/* funcao apagar arquivo:
+		int eof = 0;
+		do{
+			//limpar arquivo (o cilindro e a fat)
+			if(fat.setores[i].eof != 1)
+				i = fat.setores[i].next;
+			else
+				eof = 1;	
+		}while(eof == 0);
+	*/
 }
 
 int show_FAT(){
@@ -199,7 +224,6 @@ int menu(){
 			break;
 		}
 		case(5):{
-			free(fat.lista_arquivos);
 			return 0;
 		}
 		default:{
