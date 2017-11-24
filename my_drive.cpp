@@ -161,20 +161,26 @@ int write(){
 }
 
 int read(){
-	usleep(1000000);
-	printf("lido\n");
-	return 0;
+	char nome_arquivo[100];
+	printf("Qual arquivo ler:\n");
+	scanf("%s", nome_arquivo);
+
+	for(int i = 0; i < fat.total_arquivos; i++){
+		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo)){
+
+		}
+	}
 }
 
 /*ideia para a implementação do erase*/
 int erase(){
-	char nome_arquivo[100];
+	/*char nome_arquivo[100];
 
 	printf("Qual arquivo apagar? \n");
 	scanf("%s", nome_arquivo);
 
 	for(int i = 0; i < fat.total_arquivos; i++){
-		if(fat.lista_arquivos[i] == nome_arquivo){ //comparar essas duas palavras -> está dando erro
+		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo)){ //comparar essas duas palavras -> está dando erro
 			apagar_arquivo(i);
 			return 1;
 		}
