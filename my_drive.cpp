@@ -224,10 +224,30 @@ int erase(){
 		}while(eof == 0);
 	*/
 }
+int calcula_tamanho(int indice){
+	int tamanho = 2; //ja contando o primeiro e o EOF
+	int setor_atual = fat.lista_arquivos[indice].first_sector;
+	while(fat.setores[setor_atual].eof != 1){
+		tamanho++;
+		setor_atual = fat.setores[setor_atual].next;
+	}
+	return tamanho * 512;
+}
 
 int show_FAT(){
-	printf("NOME:\tTAMANHO EM DISCO:\tLOCALIZACAO\n");
-	printf("ARQUIVO1.TXT\t2048 Bytes\t0,1,2,3\n");
+	printf("NOME:\t\tTAMANHO EM DISCO:\tLOCALIZACAO:\n");
+	//printf("ARQUIVO1.TXT\t2048 Bytes\t0,1,2,3\n");
+	for(int i=0; i<fat.total_arquivos; i++){
+		printf("%s\t",fat.lista_arquivos[i].file_name);
+		printf("%d bytes\t\t", calcula_tamanho(i));
+
+		int pos_leitura = fat.lista_arquivos[i].first_sector;
+		while(fat.setores[pos_leitura].eof != 1){
+			printf("%d ", pos_leitura);
+			pos_leitura = fat.setores[pos_leitura].next;
+		}
+		printf("%d \n", pos_leitura); //o ultimo setor
+	}
 	return 0;
 }
 
