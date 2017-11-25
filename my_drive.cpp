@@ -79,9 +79,10 @@ typedef struct Fat {
 } Fat;
 
 Fat fat;
-track_array cilindros[10];
+track_array cilindros[TRILHAS_SUPERF];
 
-//retorna a pocisao do cilindro(setor) que esta livre, de acordo com a tabela FAT 
+/*Busca o primeiro setor livre da tabela FAT, o que corresponde ao primeiro setor
+de um cluster*/ 
 int buscar_setor_disponivel(){
 	int setor = 0;
 	for(int i = 0; i < TOTAL_SETORES; i++){
@@ -90,10 +91,12 @@ int buscar_setor_disponivel(){
 			break;
 		}
 	}
-	//index do setor no cilindro
 	return setor;
 }
 
+/*ver em qual cilindro, trilha e setor esta a posicao em bytes do 
+pos_setor(posicao do setor inicial do arquivo na FAT) multiplicado
+por 512(indicando o total de bytes)*/
 void calcularPos(int *p_cilindro, int *p_trilha, int *p_setor, int pos_bytes){
 	int resto;
 	*p_cilindro = (int)(pos_bytes/(TRILHAS_CILINDRO * SETORES_TRILHA * SETOR_BYTES));
@@ -104,12 +107,13 @@ void calcularPos(int *p_cilindro, int *p_trilha, int *p_setor, int pos_bytes){
 
 }
 
-//A funcao de escrita deve pedir um nome de arquivo .TXT na pasta onde esta sendo executado o programa e escrever no hd virtual
+/*A funcao de escrita deve pedir um nome de arquivo .TXT na pasta onde
+ esta sendo executado o programa e escrever no hd virtual(estrutura cilindro)*/
 int write(){
-	int p_cilindro, p_trilha, p_setor;
+	int p_cilindro, p_trilha, p_setor;       //variaveis que indicam a posicao no cilindro
 	int pos_setor = 0, pos_setor_aux = 0;   //index do setor na FAT
     int eof = 0;
-    char b[20];
+    char b[20];                           //buffer para ver se esta no fim do arquivo
     char nome_arquivo[100];
     FILE *arq;
 
@@ -124,38 +128,50 @@ int write(){
 
 	pos_setor = buscar_setor_disponivel();
 	
+	/*marco os 4 setores seguidos do pos_setor com used igual a 1
+	e tambem indico o next(para onde cada setor aponta) de cada um deles*/
 	for(int i = 0; i < CLUSTER_SETORES; i++){
 		fat.setores[(pos_setor) + i].used = 1;
 		if(i < CLUSTER_SETORES - 1)
 			fat.setores[(pos_setor) + i].next = (pos_setor + i) + 1;
 	}
 	
+	/*coloco na FAT o nome do arquivo e o primeiro setor dele*/
 	strcpy(fat.lista_arquivos[fat.total_arquivos].file_name, nome_arquivo);
 	fat.lista_arquivos[fat.total_arquivos].first_sector = pos_setor;
 	fat.total_arquivos++;
    
 	do{
+		/*ver em qual cilindro, trilha e setor esta a posicao em bytes do pos_setor * 512*/
 		calcularPos(&p_cilindro, &p_trilha, &p_setor, pos_setor * 512);
-		//encher o cluster
+
+		/*escrevo 512 * CLUSTER_SETORES bytes do arquivo passado na estrutura cilindro*/
 		for(int i = 0; i < CLUSTER_SETORES; i++){
 			fread(cilindros[p_cilindro].track[p_trilha].sector[p_setor + i].bytes_s, 512, 1, arq);
-			//fseek(arq, 512, SEEK_SET);
-			//printf("Setor %d: %s\n", i,cilindros[p_cilindro].track[p_trilha].sector[p_trilha + i].bytes_s);
 		}
 		
+		/*serve para ver se o arquivo ja esta no fim*/
 		eof = fscanf(arq, "%s", b);
-		//vejo se o proximo cluster esta sendo utilizado
+		
+		/*se nao estiver no final do arquivo eh necessario buscar um novo cluster*/
 		if(eof != EOF){
-			pos_setor_aux = pos_setor + 3;
+			pos_setor_aux = pos_setor + 3;    //recebe o ultimo setor do cluster atual
+
+			/*se o cluster seguinte ao atual estiver sendo utilizado, procuro um outro
+			atraves da funcao buscar_setor_disponivel*/
 			if(fat.setores[pos_setor + 4].used == 1){
 				pos_setor = buscar_setor_disponivel();
 			}
+			/*se o proximo cluster nao estiver sendo utilizado, utilizo ele*/
 			else{
 				pos_setor = (pos_setor + 4);
 			}
 
+			/*faco o next do cluster anterior apontar para o inicio do atual*/
 			fat.setores[pos_setor_aux].next = pos_setor;
 
+			/*marco os 4 setores seguidos do pos_setor com used igual a 1 e tambem 
+			indico o next(para onde cada setor aponta) de cada um deles*/
 			for(int i = 0; i < CLUSTER_SETORES; i++){
 				fat.setores[(pos_setor) + i].used = 1;
 				if(i < CLUSTER_SETORES - 1)
@@ -163,35 +179,34 @@ int write(){
 			}
 		}
 	} while(eof != EOF);
+	/*indico que a escrita do arquivo acabou*/
 	fat.setores[pos_setor + 3].eof = 1;
 
-	/*printf("fat[0].next%d\n", fat.setores[0].next);
-	printf("fat[1].next%d\n", fat.setores[1].next);
-	printf("fat[2].next%d\n", fat.setores[2].next);
-	printf("fat[3].next%d\n", fat.setores[3].next);
-	printf("fat[4].next%d\n", fat.setores[4].next);
-	printf("fat[0].used%d\n", fat.setores[0].used);
-	printf("fat[1].used%d\n", fat.setores[1].used);
-	printf("fat[2].used%d\n", fat.setores[2].used);
-	printf("fat[3].used%d\n", fat.setores[3].used);
-	printf("fat[4].used%d\n", fat.setores[4].used);
-	printf("eof: %d", fat.setores[3].eof);
-	*/
 	fclose(arq);	
 	return 1;
 }
 
-void ler_arquivo(int i){
+/*recebe como parametro o first_sector do arquivo a ser escrito no SAIDA.txt
+Essa funcao e responsavel por gravar o conteudo do arquivo no arquivo de texto
+SAIDA.txt*/
+void ler_arquivo(int pos_arquivo){
 	int eof = 0;
-	int p_cilindro, p_trilha, p_setor;
+	int p_cilindro, p_trilha, p_setor;   //variaveis que indicam a posicao no cilindro
 	FILE *arq;
 
 	arq = fopen("SAIDA.TXT", "w");
+
 	do{
-		calcularPos(&p_cilindro, &p_trilha, &p_setor, i * 512);
-		fputs(cilindros[p_cilindro].track[p_trilha].sector[p_setor].bytes_s, arq);
-		if(fat.setores[i].eof != 1)
-			i = fat.setores[i].next;
+		calcularPos(&p_cilindro, &p_trilha, &p_setor, pos_arquivo * 512);
+
+		/*Escreve um cluster no arquivo de saida*/
+		for(int i = 0; i < CLUSTER_SETORES; i++){
+			fputs(cilindros[p_cilindro].track[p_trilha].sector[p_setor + i].bytes_s, arq);
+		}
+		
+		/*enquanto não acabar o arquivo, procuro o proximo cluster*/
+		if(fat.setores[pos_arquivo + 3].eof != 1)
+			pos_arquivo = fat.setores[pos_arquivo + 3].next;
 		else
 			eof = 1;
 
@@ -199,14 +214,15 @@ void ler_arquivo(int i){
 	fclose(arq);
 }
 
+/*A funcao e responsavel por pedir o nome do arquivo para leitura,
+ver se esse arquivo existe e se existir chamar a funcao ler_arquivo*/
 int read(){
 	char nome_arquivo[100];
 	printf("Qual arquivo ler:\n");
 	scanf("%s", nome_arquivo);
 
-	printf("File name: %s\n", fat.lista_arquivos[0].file_name);
-	printf("nome_arquivo: %s\n", nome_arquivo);
-
+	/*Procura na lista de arquivos se o arquivo pedido existe, se
+	sim retorna 1, caso contrario retorna 0*/
 	for(int i = 0; i < fat.total_arquivos; i++){
 		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo) == 0){
 			ler_arquivo(i);
