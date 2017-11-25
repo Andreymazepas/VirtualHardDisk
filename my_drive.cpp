@@ -161,8 +161,6 @@ int write(time_t tempo_inicial){
 			//setor, para guardar o delimitador, no caso 511
 			fread(cilindros[p_cilindro].track[p_trilha].sector[p_setor + i].bytes_s, 511, 1, arq);
 		}
-		
-		printf("pos_setor: %d\n", pos_setor);
 
 		/*serve para ver se o arquivo ja esta no fim*/
 		//eof = fscanf(arq, "%s", b);
@@ -179,6 +177,13 @@ int write(time_t tempo_inicial){
 			/*se o proximo cluster nao estiver sendo utilizado, utilizo ele*/
 			else{
 				pos_setor = (pos_setor + 4);
+			}
+
+			/*Verifica se ainda existe espaco livre no HD atraves da FAT*/
+			if(pos_setor >= TOTAL_SETORES){
+				printf("Acabou o espaço\n");
+				fat.setores[pos_setor_aux].eof = 1;	
+				return 0;
 			}
 
 			/*faco o next do cluster anterior apontar para o inicio do atual*/
@@ -200,49 +205,6 @@ int write(time_t tempo_inicial){
 	tempo_final = time(NULL);
     printf("Tempo final: %s", asctime(gmtime(&tempo_final)));
 	printf("Tempo total gasto em segundos: %lf\n", calcularTempo(tempo_inicial, tempo_final));
-	
-	//printf("String: %s\n", cilindros[0].track[0].sector[0].bytes_);
-	printf("fat.setores[0].next = %d\n", fat.setores[0].next);
-	printf("fat.setores[1].next = %d\n", fat.setores[1].next);
-	printf("fat.setores[2].next = %d\n", fat.setores[2].next);
-	printf("fat.setores[3].next = %d\n", fat.setores[3].next);
-	printf("fat.setores[4].next = %d\n", fat.setores[4].next);
-	printf("fat.setores[5].next = %d\n", fat.setores[5].next);
-	printf("fat.setores[6].next = %d\n", fat.setores[6].next);
-	printf("fat.setores[7].next = %d\n", fat.setores[7].next);
-	printf("fat.setores[8].next = %d\n", fat.setores[8].next);
-	printf("fat.setores[9].next = %d\n", fat.setores[9].next);
-	printf("fat.setores[10].next = %d\n", fat.setores[10].next);
-	printf("fat.setores[11].next = %d\n", fat.setores[11].next);
-	printf("fat.setores[12].next = %d\n", fat.setores[12].next);
-	printf("fat.setores[13].next = %d\n", fat.setores[13].next);
-	printf("fat.setores[14].next = %d\n", fat.setores[14].next);
-	printf("fat.setores[15].next = %d\n", fat.setores[15].next);
-	printf("fat.setores[16].next = %d\n", fat.setores[16].next);
-	printf("fat.setores[17].next = %d\n", fat.setores[17].next);
-
-	printf("fat.setores[0].used = %d\n", fat.setores[0].used);
-	printf("fat.setores[1].next = %d\n", fat.setores[1].used);
-	printf("fat.setores[2].next = %d\n", fat.setores[2].used);
-	printf("fat.setores[3].next = %d\n", fat.setores[3].used);
-	printf("fat.setores[4].next = %d\n", fat.setores[4].used);
-	printf("fat.setores[5].next = %d\n", fat.setores[5].used);
-	printf("fat.setores[6].next = %d\n", fat.setores[6].used);
-	printf("fat.setores[7].next = %d\n", fat.setores[7].used);
-	printf("fat.setores[8].next = %d\n", fat.setores[8].used);
-	printf("fat.setores[9].next = %d\n", fat.setores[9].used);
-	printf("fat.setores[10].next = %d\n", fat.setores[10].used);
-	printf("fat.setores[11].next = %d\n", fat.setores[11].used);
-	printf("fat.setores[12].next = %d\n", fat.setores[12].used);
-	printf("fat.setores[13].next = %d\n", fat.setores[13].used);
-	printf("fat.setores[14].next = %d\n", fat.setores[14].used);
-	printf("fat.setores[15].next = %d\n", fat.setores[15].used);
-	printf("fat.setores[16].next = %d\n", fat.setores[16].used);
-	printf("fat.setores[17].next = %d\n", fat.setores[17].used);
-
-	printf("fat.setores[15].eof = %d\n", fat.setores[15].eof);
-
-	printf("%s\n",(cilindros[0].track[0].sector[0].bytes_s));
 
 	fclose(arq);	
 	return 1;
