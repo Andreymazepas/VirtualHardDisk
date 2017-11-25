@@ -41,6 +41,7 @@
 #include <unistd.h>
 #include <stdlib.h>	
 #include <string.h>
+#include "time.h"	
 
 //usleep utiliza microsegundos
 #define T_SEEK_MEDIO 4000
@@ -81,6 +82,14 @@ typedef struct Fat {
 Fat fat;
 track_array cilindros[TRILHAS_SUPERF];
 
+/*funcao calcula tempo gasto desde o inicio da execucao de uma
+determinada funcao ate o fim dela.*/
+double calcularTempo(time_t inicio, time_t fim){
+	double dif;
+	dif = difftime(fim, inicio);
+	return dif;
+}
+
 /*Busca o primeiro setor livre da tabela FAT, o que corresponde ao primeiro setor
 de um cluster*/ 
 int buscar_setor_disponivel(){
@@ -109,13 +118,14 @@ void calcularPos(int *p_cilindro, int *p_trilha, int *p_setor, int pos_bytes){
 
 /*A funcao de escrita deve pedir um nome de arquivo .TXT na pasta onde
  esta sendo executado o programa e escrever no hd virtual(estrutura cilindro)*/
-int write(){
+int write(time_t tempo_inicial){
 	int p_cilindro, p_trilha, p_setor;       //variaveis que indicam a posicao no cilindro
 	int pos_setor = 0, pos_setor_aux = 0;   //index do setor na FAT
     int eof = 0;
     char b[20];                           //buffer para ver se esta no fim do arquivo
     char nome_arquivo[100];
     FILE *arq;
+    time_t tempo_final;
 
     printf("Qual o nome do arquivo (.txt):\n");
     scanf("%s", nome_arquivo);
@@ -147,14 +157,18 @@ int write(){
 
 		/*escrevo 512 * CLUSTER_SETORES bytes do arquivo passado na estrutura cilindro*/
 		for(int i = 0; i < CLUSTER_SETORES; i++){
-			fread(cilindros[p_cilindro].track[p_trilha].sector[p_setor + i].bytes_s, 512, 1, arq);
+			//obs.: e necessario ler um numero a menos do tamanho do 
+			//setor, para guardar o delimitador, no caso 511
+			fread(cilindros[p_cilindro].track[p_trilha].sector[p_setor + i].bytes_s, 511, 1, arq);
 		}
 		
+		printf("pos_setor: %d\n", pos_setor);
+
 		/*serve para ver se o arquivo ja esta no fim*/
-		eof = fscanf(arq, "%s", b);
+		//eof = fscanf(arq, "%s", b);
 		
 		/*se nao estiver no final do arquivo eh necessario buscar um novo cluster*/
-		if(eof != EOF){
+		if(!feof(arq)){
 			pos_setor_aux = pos_setor + 3;    //recebe o ultimo setor do cluster atual
 
 			/*se o cluster seguinte ao atual estiver sendo utilizado, procuro um outro
@@ -178,9 +192,57 @@ int write(){
 					fat.setores[(pos_setor) + i].next = (pos_setor + i) + 1;
 			}
 		}
-	} while(eof != EOF);
+	} while(!feof(arq));
 	/*indico que a escrita do arquivo acabou*/
 	fat.setores[pos_setor + 3].eof = 1;
+
+	/*calcular o tempo gasto*/
+	tempo_final = time(NULL);
+    printf("Tempo final: %s", asctime(gmtime(&tempo_final)));
+	printf("Tempo total gasto em segundos: %lf\n", calcularTempo(tempo_inicial, tempo_final));
+	
+	//printf("String: %s\n", cilindros[0].track[0].sector[0].bytes_);
+	printf("fat.setores[0].next = %d\n", fat.setores[0].next);
+	printf("fat.setores[1].next = %d\n", fat.setores[1].next);
+	printf("fat.setores[2].next = %d\n", fat.setores[2].next);
+	printf("fat.setores[3].next = %d\n", fat.setores[3].next);
+	printf("fat.setores[4].next = %d\n", fat.setores[4].next);
+	printf("fat.setores[5].next = %d\n", fat.setores[5].next);
+	printf("fat.setores[6].next = %d\n", fat.setores[6].next);
+	printf("fat.setores[7].next = %d\n", fat.setores[7].next);
+	printf("fat.setores[8].next = %d\n", fat.setores[8].next);
+	printf("fat.setores[9].next = %d\n", fat.setores[9].next);
+	printf("fat.setores[10].next = %d\n", fat.setores[10].next);
+	printf("fat.setores[11].next = %d\n", fat.setores[11].next);
+	printf("fat.setores[12].next = %d\n", fat.setores[12].next);
+	printf("fat.setores[13].next = %d\n", fat.setores[13].next);
+	printf("fat.setores[14].next = %d\n", fat.setores[14].next);
+	printf("fat.setores[15].next = %d\n", fat.setores[15].next);
+	printf("fat.setores[16].next = %d\n", fat.setores[16].next);
+	printf("fat.setores[17].next = %d\n", fat.setores[17].next);
+
+	printf("fat.setores[0].used = %d\n", fat.setores[0].used);
+	printf("fat.setores[1].next = %d\n", fat.setores[1].used);
+	printf("fat.setores[2].next = %d\n", fat.setores[2].used);
+	printf("fat.setores[3].next = %d\n", fat.setores[3].used);
+	printf("fat.setores[4].next = %d\n", fat.setores[4].used);
+	printf("fat.setores[5].next = %d\n", fat.setores[5].used);
+	printf("fat.setores[6].next = %d\n", fat.setores[6].used);
+	printf("fat.setores[7].next = %d\n", fat.setores[7].used);
+	printf("fat.setores[8].next = %d\n", fat.setores[8].used);
+	printf("fat.setores[9].next = %d\n", fat.setores[9].used);
+	printf("fat.setores[10].next = %d\n", fat.setores[10].used);
+	printf("fat.setores[11].next = %d\n", fat.setores[11].used);
+	printf("fat.setores[12].next = %d\n", fat.setores[12].used);
+	printf("fat.setores[13].next = %d\n", fat.setores[13].used);
+	printf("fat.setores[14].next = %d\n", fat.setores[14].used);
+	printf("fat.setores[15].next = %d\n", fat.setores[15].used);
+	printf("fat.setores[16].next = %d\n", fat.setores[16].used);
+	printf("fat.setores[17].next = %d\n", fat.setores[17].used);
+
+	printf("fat.setores[15].eof = %d\n", fat.setores[15].eof);
+
+	printf("%s\n",(cilindros[0].track[0].sector[0].bytes_s));
 
 	fclose(arq);	
 	return 1;
@@ -216,8 +278,10 @@ void ler_arquivo(int pos_arquivo){
 
 /*A funcao e responsavel por pedir o nome do arquivo para leitura,
 ver se esse arquivo existe e se existir chamar a funcao ler_arquivo*/
-int read(){
+int read(time_t tempo_inicial){
 	char nome_arquivo[100];
+	time_t tempo_final;
+
 	printf("Qual arquivo ler:\n");
 	scanf("%s", nome_arquivo);
 
@@ -226,6 +290,10 @@ int read(){
 	for(int i = 0; i < fat.total_arquivos; i++){
 		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo) == 0){
 			ler_arquivo(i);
+			/*calcular o tempo gasto*/
+			tempo_final = time(NULL);
+   		 	printf("Tempo final: %s", asctime(gmtime(&tempo_final)));
+			printf("Tempo total gasto em segundos: %lf\n", calcularTempo(tempo_inicial, tempo_final));
 			return 1;
 		}
 	}
@@ -295,14 +363,19 @@ int menu(){
 	scanf("%d",&choice);
 	switch(choice){
 		case(1):{
-			write();
+			time_t tempo_inicial = time(NULL);
+    		printf("Tempo inicial: %s", asctime(gmtime(&tempo_inicial)));
+			write(tempo_inicial);
 			break;
 		}
 		case(2):{
-			read();
+			time_t tempo_inicial = time(NULL);
+    		printf("Tempo inicial: %s", asctime(gmtime(&tempo_inicial)));
+			read(tempo_inicial);
 			break;
 		}
 		case(3):{
+
 			erase();
 			break;
 		}
