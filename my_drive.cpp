@@ -91,7 +91,7 @@ int buscar_setor_disponivel(){
 		}
 	}
 	//index do setor no cilindro
-	return setor * 512;
+	return setor;
 }
 
 void calcularPos(int *p_cilindro, int *p_trilha, int *p_setor, int pos_bytes){
@@ -107,8 +107,9 @@ void calcularPos(int *p_cilindro, int *p_trilha, int *p_setor, int pos_bytes){
 //A funcao de escrita deve pedir um nome de arquivo .TXT na pasta onde esta sendo executado o programa e escrever no hd virtual
 int write(){
 	int p_cilindro, p_trilha, p_setor;
-	int pos_setor = 0;   //index do setor no cilindro
-	int pos_FAT = 0;    //index do setor na FAT
+	int pos_setor = 0, pos_setor_aux = 0;   //index do setor na FAT
+    int eof = 0;
+    char b[20];
     char nome_arquivo[100];
     FILE *arq;
 
@@ -122,41 +123,61 @@ int write(){
     }
 
 	pos_setor = buscar_setor_disponivel();
-	printf("Pos setor: %d\n", pos_setor);
+	
+	for(int i = 0; i < CLUSTER_SETORES; i++){
+		fat.setores[(pos_setor) + i].used = 1;
+		if(i < CLUSTER_SETORES - 1)
+			fat.setores[(pos_setor) + i].next = (pos_setor + i) + 1;
+	}
 	
 	strcpy(fat.lista_arquivos[fat.total_arquivos].file_name, nome_arquivo);
-	fat.lista_arquivos[fat.total_arquivos].first_sector = pos_setor/512;
+	fat.lista_arquivos[fat.total_arquivos].first_sector = pos_setor;
 	fat.total_arquivos++;
    
-
-	while(!feof(arq)){
-		//pego 512 bytes do arquivo e escrevo no cilindro
+	do{
+		calcularPos(&p_cilindro, &p_trilha, &p_setor, pos_setor * 512);
+		//encher o cluster
+		for(int i = 0; i < CLUSTER_SETORES; i++){
+			fread(cilindros[p_cilindro].track[p_trilha].sector[p_setor + i].bytes_s, 512, 1, arq);
+			//fseek(arq, 512, SEEK_SET);
+			//printf("Setor %d: %s\n", i,cilindros[p_cilindro].track[p_trilha].sector[p_trilha + i].bytes_s);
+		}
 		
-		calcularPos(&p_cilindro, &p_trilha, &p_setor, pos_setor);
-		fgets(cilindros[p_cilindro].track[p_trilha].sector[p_trilha].bytes_s, 512, arq);
-		//fgets(cilindros[0].track[0].sector[0].bytes_s, 512, arq);
-		
-		pos_FAT = pos_setor/512;
-		if(!feof(arq)){
-			//vejo se o proximo setor esta sendo utilizado
-			if(fat.setores[pos_FAT + 1].used == 1){
+		eof = fscanf(arq, "%s", b);
+		//vejo se o proximo cluster esta sendo utilizado
+		if(eof != EOF){
+			pos_setor_aux = pos_setor + 3;
+			if(fat.setores[pos_setor + 4].used == 1){
 				pos_setor = buscar_setor_disponivel();
 			}
 			else{
-				pos_setor = (pos_FAT + 1) * 512;
+				pos_setor = (pos_setor + 4);
 			}
-			fat.setores[pos_FAT].next = pos_setor/512;
-			fat.setores[pos_FAT].used = 1;
+
+			fat.setores[pos_setor_aux].next = pos_setor;
+
+			for(int i = 0; i < CLUSTER_SETORES; i++){
+				fat.setores[(pos_setor) + i].used = 1;
+				if(i < CLUSTER_SETORES - 1)
+					fat.setores[(pos_setor) + i].next = (pos_setor + i) + 1;
+			}
 		}
-		
-	}
-	fat.setores[pos_FAT].used = 1;
-	fat.setores[pos_FAT].eof = 1;
-	fclose(arq);
-	printf("0: %d\n", fat.setores[0].used);
-	printf("1: %d\n", fat.setores[1].used);
-	printf("2: %d\n", fat.setores[2].used);
-	//printf("%s\n", cilindros[0].track[0].sector[0].bytes_s);
+	} while(eof != EOF);
+	fat.setores[pos_setor + 3].eof = 1;
+
+	/*printf("fat[0].next%d\n", fat.setores[0].next);
+	printf("fat[1].next%d\n", fat.setores[1].next);
+	printf("fat[2].next%d\n", fat.setores[2].next);
+	printf("fat[3].next%d\n", fat.setores[3].next);
+	printf("fat[4].next%d\n", fat.setores[4].next);
+	printf("fat[0].used%d\n", fat.setores[0].used);
+	printf("fat[1].used%d\n", fat.setores[1].used);
+	printf("fat[2].used%d\n", fat.setores[2].used);
+	printf("fat[3].used%d\n", fat.setores[3].used);
+	printf("fat[4].used%d\n", fat.setores[4].used);
+	printf("eof: %d", fat.setores[3].eof);
+	*/
+	fclose(arq);	
 	return 1;
 }
 
@@ -169,7 +190,6 @@ void ler_arquivo(int i){
 	do{
 		calcularPos(&p_cilindro, &p_trilha, &p_setor, i * 512);
 		fputs(cilindros[p_cilindro].track[p_trilha].sector[p_setor].bytes_s, arq);
-		//leio o cilindro da posição i*512
 		if(fat.setores[i].eof != 1)
 			i = fat.setores[i].next;
 		else

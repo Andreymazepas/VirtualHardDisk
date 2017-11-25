@@ -1,1 +1,5 @@
-oiffffffffffffffffffffff123
+Reading and writing to a text file
+For reading and writing to a text file, we use the functions fprintf() and fscanf().
+They are just the file versions of printf() and scanf(). The only difference is that, fprint and fscanf expects a pointer to the structure FILE.
+Writing to a text file
+Example 1: Write to a text file using fprintf()
