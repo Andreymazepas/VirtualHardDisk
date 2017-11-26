@@ -41,13 +41,11 @@
 #include <unistd.h>
 #include <stdlib.h>	
 #include <string.h>
-#include "time.h"	
 
-//usleep utiliza microsegundos
-#define T_SEEK_MEDIO 4000
-#define T_SEEK_MIN 1000
-#define T_LATENCIA_MEDIA 6000
-#define T_TRANSF_TRILHA 12000
+#define T_SEEK_MEDIO 4
+#define T_SEEK_MIN 1
+#define T_LATENCIA_MEDIA 6
+#define T_TRANSF_TRILHA 12
 #define SETORES_TRILHA 60
 #define TRILHAS_SUPERF 10
 #define TRILHAS_CILINDRO 5
@@ -81,14 +79,18 @@ typedef struct Fat {
 
 Fat fat;
 track_array cilindros[TRILHAS_SUPERF];
+/*Prototipos das funcoes */
+int buscar_setor_disponivel();
+void calcularPos(int *p_cilindro, int *p_trilha, int *p_setor, int pos_bytes);
+int write();
+void ler_arquivo(int pos_arquivo);
+int read();
+void apagar_arquivo(int i);
+int erase();
+int calcula_tamanho(int indice);
+int show_FAT();
+int menu();
 
-/*funcao calcula tempo gasto desde o inicio da execucao de uma
-determinada funcao ate o fim dela.*/
-double calcularTempo(time_t inicio, time_t fim){
-	double dif;
-	dif = difftime(fim, inicio);
-	return dif;
-}
 
 /*Busca o primeiro setor livre da tabela FAT, o que corresponde ao primeiro setor
 de um cluster*/ 
@@ -118,14 +120,15 @@ void calcularPos(int *p_cilindro, int *p_trilha, int *p_setor, int pos_bytes){
 
 /*A funcao de escrita deve pedir um nome de arquivo .TXT na pasta onde
  esta sendo executado o programa e escrever no hd virtual(estrutura cilindro)*/
-int write(time_t tempo_inicial){
-	int p_cilindro, p_trilha, p_setor;       //variaveis que indicam a posicao no cilindro
+int write(){
+	int p_cilindro, p_trilha, p_setor, p_cilindro_inicial;       //variaveis que indicam a posicao no cilindro
 	int pos_setor = 0, pos_setor_aux = 0;   //index do setor na FAT
-    int eof = 0;
+	int eof = 0;
+	int tempo=0;
+	int index_arquivo;
     char b[20];                           //buffer para ver se esta no fim do arquivo
     char nome_arquivo[100];
     FILE *arq;
-    time_t tempo_final;
 
     printf("Qual o nome do arquivo (.txt):\n");
     scanf("%s", nome_arquivo);
@@ -137,6 +140,7 @@ int write(time_t tempo_inicial){
     }
 
 	pos_setor = buscar_setor_disponivel();
+	tempo += T_SEEK_MEDIO - T_SEEK_MIN; //desconta um seek minimo devido a soma extra dentro do while
 	
 	/*marco os 4 setores seguidos do pos_setor com used igual a 1
 	e tambem indico o next(para onde cada setor aponta) de cada um deles*/
@@ -153,6 +157,7 @@ int write(time_t tempo_inicial){
 			strcpy(fat.lista_arquivos[i].file_name, nome_arquivo);
 			fat.lista_arquivos[i].first_sector = pos_setor;
 			fat.total_arquivos++;
+			index_arquivo = i;
 			break;
 		}
 	}
@@ -161,14 +166,17 @@ int write(time_t tempo_inicial){
 	do{
 		/*ver em qual cilindro, trilha e setor esta a posicao em bytes do pos_setor * 512*/
 		calcularPos(&p_cilindro, &p_trilha, &p_setor, pos_setor * 512);
-
+		if(p_cilindro != p_cilindro_inicial){ //se mudou de cilindro, adicionar T_SEEK_MIN
+			p_cilindro_inicial = p_cilindro;
+			tempo+=T_SEEK_MIN;
+		}
+		tempo += T_LATENCIA_MEDIA; //espero o setor ficar embaixo da cabeca de leitura
 		/*escrevo 512 * CLUSTER_SETORES bytes do arquivo passado na estrutura cilindro*/
 		for(int i = 0; i < CLUSTER_SETORES; i++){
 			//obs.: e necessario ler um numero a menos do tamanho do 
 			//setor, para guardar o delimitador, no caso 511
 			fread(cilindros[p_cilindro].track[p_trilha].sector[p_setor + i].bytes_s, 511, 1, arq);
 		}
-
 		/*serve para ver se o arquivo ja esta no fim*/
 		//eof = fscanf(arq, "%s", b);
 		
@@ -184,11 +192,13 @@ int write(time_t tempo_inicial){
 			else{
 				pos_setor = (pos_setor + 4);
 			}
-
+					
+			
 			/*Verifica se ainda existe espaco livre no HD atraves da FAT*/
 			if(pos_setor >= TOTAL_SETORES){
-				printf("Acabou o espaço\n");
-				fat.setores[pos_setor_aux].eof = 1;	
+				printf("Espaço em disco insuficiente\n");
+				fat.setores[pos_setor_aux].eof = 1;
+				apagar_arquivo(index_arquivo); //faz mais sentido apagar o arquivo se ele nao cabe inteiro
 				return 0;
 			}
 
@@ -208,9 +218,8 @@ int write(time_t tempo_inicial){
 	fat.setores[pos_setor + 3].eof = 1;
 
 	/*calcular o tempo gasto*/
-	tempo_final = time(NULL);
-    printf("Tempo final: %s", asctime(gmtime(&tempo_final)));
-	printf("Tempo total gasto em segundos: %lf\n", calcularTempo(tempo_inicial, tempo_final));
+	
+    printf("Tempo final: %dms\n", tempo);
 
 	fclose(arq);	
 	return 1;
@@ -221,34 +230,42 @@ Essa funcao e responsavel por gravar o conteudo do arquivo no arquivo de texto
 SAIDA.txt*/
 void ler_arquivo(int pos_arquivo){
 	int eof = 0;
+	int tempo;
 	int p_cilindro, p_trilha, p_setor;   //variaveis que indicam a posicao no cilindro
 	FILE *arq;
-
+	tempo += T_SEEK_MEDIO - T_SEEK_MIN; //desconta um seek minimo pro calculo dentro do while bater
 	arq = fopen("SAIDA.TXT", "w");
-
+	int p_cilindro_inicial;
 	do{
 		calcularPos(&p_cilindro, &p_trilha, &p_setor, pos_arquivo * 512);
-
+		if(p_cilindro != p_cilindro_inicial){ //se mudou de cilindro, adicionar T_SEEK_MIN
+			p_cilindro_inicial = p_cilindro;
+			tempo+=T_SEEK_MIN;
+		}
+		tempo+=T_LATENCIA_MEDIA;
 		/*Escreve um cluster no arquivo de saida*/
+		tempo += T_TRANSF_TRILHA; //tempo de leitura da trilha
 		for(int i = 0; i < CLUSTER_SETORES; i++){
 			fputs(cilindros[p_cilindro].track[p_trilha].sector[p_setor + i].bytes_s, arq);
 		}
 		
 		/*enquanto não acabar o arquivo, procuro o proximo cluster*/
-		if(fat.setores[pos_arquivo + 3].eof != 1)
+		if(fat.setores[pos_arquivo + 3].eof != 1){
 			pos_arquivo = fat.setores[pos_arquivo + 3].next;
+		}
 		else
 			eof = 1;
-
+			
 	} while(eof == 0);
+	/*calcular o tempo gasto*/
+    printf("Tempo final: %dms\n", tempo);
 	fclose(arq);
 }
 
 /*A funcao e responsavel por pedir o nome do arquivo para leitura,
 ver se esse arquivo existe e se existir chamar a funcao ler_arquivo*/
-int read(time_t tempo_inicial){
+int read(){
 	char nome_arquivo[100];
-	time_t tempo_final;
 
 	printf("Qual arquivo ler:\n");
 	scanf("%s", nome_arquivo);
@@ -258,10 +275,6 @@ int read(time_t tempo_inicial){
 	for(int i = 0; i < fat.total_arquivos; i++){
 		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo) == 0){
 			ler_arquivo(i);
-			/*calcular o tempo gasto*/
-			tempo_final = time(NULL);
-   		 	printf("Tempo final: %s", asctime(gmtime(&tempo_final)));
-			printf("Tempo total gasto em segundos: %lf\n", calcularTempo(tempo_inicial, tempo_final));
 			return 1;
 		}
 	}
@@ -340,19 +353,14 @@ int menu(){
 	scanf("%d",&choice);
 	switch(choice){
 		case(1):{
-			time_t tempo_inicial = time(NULL);
-    		printf("Tempo inicial: %s", asctime(gmtime(&tempo_inicial)));
-			write(tempo_inicial);
+			write();
 			break;
 		}
 		case(2):{
-			time_t tempo_inicial = time(NULL);
-    		printf("Tempo inicial: %s", asctime(gmtime(&tempo_inicial)));
-			read(tempo_inicial);
+			read();
 			break;
 		}
 		case(3):{
-
 			erase();
 			break;
 		}
