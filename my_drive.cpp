@@ -62,7 +62,7 @@ typedef struct sector_array { block sector[60]; } sector_array; //uma trilha, 60
 typedef struct track_array { sector_array track[5]; } track_array; //um cilindro
 
 typedef struct fatlist_s {
-	char file_name[100];
+	char file_name[100] = { '\0' }; //inicializando como string vazia
 	unsigned int first_sector;
 } fatlist; //conteudo da tabela FAT contendo nome e primeiro setor do arquivo
 
@@ -147,9 +147,16 @@ int write(time_t tempo_inicial){
 	}
 	
 	/*coloco na FAT o nome do arquivo e o primeiro setor dele*/
-	strcpy(fat.lista_arquivos[fat.total_arquivos].file_name, nome_arquivo);
-	fat.lista_arquivos[fat.total_arquivos].first_sector = pos_setor;
-	fat.total_arquivos++;
+	//procura primeira posicao livre da lista de arquivos
+	for(int i=0; i<MAX_ARQUIVOS; i++){
+		if(fat.lista_arquivos[i].file_name[0] == '\0'){
+			strcpy(fat.lista_arquivos[i].file_name, nome_arquivo);
+			fat.lista_arquivos[i].first_sector = pos_setor;
+			fat.total_arquivos++;
+			break;
+		}
+	}
+	
    
 	do{
 		/*ver em qual cilindro, trilha e setor esta a posicao em bytes do pos_setor * 512*/
@@ -263,14 +270,26 @@ int read(time_t tempo_inicial){
 	return 0;
 }
 
-/*ideia para a implementação do erase*/
+void apagar_arquivo(int i){
+	int eof = 0;
+	int setor_atual = fat.lista_arquivos[i].first_sector;
+	fat.lista_arquivos[i].file_name[0] = '\0';
+	do{
+		fat.setores[setor_atual].used = 0;
+		if(fat.setores[setor_atual].eof != 1)
+			setor_atual = fat.setores[setor_atual].next;
+		else
+			eof = 1;
+	}while(eof == 0);
+}
+
 int erase(){
-	/*char nome_arquivo[100];
+	char nome_arquivo[100];
 
 	printf("Qual arquivo apagar? \n");
 	scanf("%s", nome_arquivo);
 
-	for(int i = 0; i < fat.total_arquivos; i++){
+	for(int i = 0; i < MAX_ARQUIVOS; i++){
 		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo) == 0){ //comparar essas duas palavras -> está dando erro
 			apagar_arquivo(i);
 			return 1;
@@ -278,18 +297,9 @@ int erase(){
 	}
 	printf("Arquivo invalido\n");
 	return 0;
-
-	/* funcao apagar arquivo:
-		int eof = 0;
-		do{
-			//limpar arquivo (o cilindro e a fat)
-			if(fat.setores[i].eof != 1)
-				i = fat.setores[i].next;
-			else
-				eof = 1;	
-		}while(eof == 0);
-	*/
 }
+
+
 int calcula_tamanho(int indice){
 	int tamanho = 2; //ja contando o primeiro e o EOF
 	int setor_atual = fat.lista_arquivos[indice].first_sector;
