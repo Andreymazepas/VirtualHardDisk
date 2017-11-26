@@ -175,7 +175,6 @@ int write(time_t tempo_inicial){
 		/*se nao estiver no final do arquivo eh necessario buscar um novo cluster*/
 		if(!feof(arq)){
 			pos_setor_aux = pos_setor + 3;    //recebe o ultimo setor do cluster atual
-
 			/*se o cluster seguinte ao atual estiver sendo utilizado, procuro um outro
 			atraves da funcao buscar_setor_disponivel*/
 			if(fat.setores[pos_setor + 4].used == 1){
@@ -278,8 +277,10 @@ void apagar_arquivo(int i){
 		fat.setores[setor_atual].used = 0;
 		if(fat.setores[setor_atual].eof != 1)
 			setor_atual = fat.setores[setor_atual].next;
-		else
+		else{
 			eof = 1;
+			fat.setores[setor_atual].eof = 0;
+		}
 	}while(eof == 0);
 }
 
@@ -312,17 +313,21 @@ int calcula_tamanho(int indice){
 
 int show_FAT(){
 	printf("NOME:\t\tTAMANHO EM DISCO:\tLOCALIZACAO:\n");
-	//printf("ARQUIVO1.TXT\t2048 Bytes\t0,1,2,3\n");
-	for(int i=0; i<fat.total_arquivos; i++){
-		printf("%s\t",fat.lista_arquivos[i].file_name);
-		printf("%d bytes\t\t", calcula_tamanho(i));
+	
+	//itera sobre todos as posicoes, mas para quando ja encontrou todos os arquivos
+	for(int i=0, j=0; i< MAX_ARQUIVOS && j<fat.total_arquivos; i++){
+		if(fat.lista_arquivos[i].file_name[0]!='\0'){
+			j++; //encontrou um arquivo
+			printf("%s\t",fat.lista_arquivos[i].file_name);
+			printf("%d bytes\t\t", calcula_tamanho(i));
 
-		int pos_leitura = fat.lista_arquivos[i].first_sector;
-		while(fat.setores[pos_leitura].eof != 1){
-			printf("%d ", pos_leitura);
-			pos_leitura = fat.setores[pos_leitura].next;
+			int pos_leitura = fat.lista_arquivos[i].first_sector;
+			while(fat.setores[pos_leitura].eof != 1){
+				printf("%d ", pos_leitura);
+				pos_leitura = fat.setores[pos_leitura].next;
+			}
+			printf("%d \n", pos_leitura); //o ultimo setor
 		}
-		printf("%d \n", pos_leitura); //o ultimo setor
 	}
 	return 0;
 }
