@@ -2,45 +2,14 @@
 	UNB 2017
 	Andrey Emmanuel Matrosov Mazépas - 16/0112362
 	Cristiane Naves Cardos           - 15/0008023
-
-	pelo que eu entendi a representação geral do hd seria assim
-	o conteudo no caso sao setores.
-
-	cilindro 1: (153600 bytes, 153,6Kb)
-		trilha 1: 0..59 (30720 bytes, 30,72Kb)
-		trilha 2: 60..119
-		trilha 3: 120..179
-		trilha 4: 180..239
-		trilha 5: 240..299
-
-	cilindro 2:
-		trilha 1: 300..359
-		trilha 2: 360..419
-		trilha 3: 420..479
-		trilha 4: 480..539
-		trilha 5: 540..599
-
-	...
-
-	no codigo estaria assim
-
-	track_array = {track[0]
-					track[1]
-				   ...}
-	track[0] = { sector[0]
-				sector[1]
-				...}
-
-	sector[0] = { char bytes_s[512] } com cada posição sendo um char
-
 */
 
 
-//#include <bits/stdc++.h>
 #include <fstream>
 #include <unistd.h>
 #include <stdlib.h>	
 #include <string.h>
+#include <iostream>
 
 #define T_SEEK_MEDIO 4
 #define T_SEEK_MIN 1
@@ -79,7 +48,9 @@ typedef struct Fat {
 
 Fat fat;
 track_array cilindros[TRILHAS_SUPERF];
+
 /*Prototipos das funcoes */
+void pressione_enter();
 int buscar_setor_disponivel();
 void calcularPos(int *p_cilindro, int *p_trilha, int *p_setor, int pos_bytes);
 int write();
@@ -91,6 +62,11 @@ int calcula_tamanho(int indice);
 int show_FAT();
 int menu();
 
+
+void pressione_enter(){
+	printf("Pressione Enter para voltar ao menu principal\n");
++	std::cin.get();
+}
 
 /*Busca o primeiro setor livre da tabela FAT, o que corresponde ao primeiro setor
 de um cluster*/ 
@@ -132,10 +108,12 @@ int write(){
 
     printf("Qual o nome do arquivo (.txt):\n");
     scanf("%s", nome_arquivo);
+    getchar(); //limpa o buffer
 
     arq = fopen(nome_arquivo, "rt");
     if(arq == NULL){
     	printf("Arquivo invalido\n");
+    	pressione_enter();
     	return 0;
     }
 
@@ -177,9 +155,6 @@ int write(){
 			//setor, para guardar o delimitador, no caso 511
 			fread(cilindros[p_cilindro].track[p_trilha].sector[p_setor + i].bytes_s, 511, 1, arq);
 		}
-		/*serve para ver se o arquivo ja esta no fim*/
-		//eof = fscanf(arq, "%s", b);
-		
 		/*se nao estiver no final do arquivo eh necessario buscar um novo cluster*/
 		if(!feof(arq)){
 			pos_setor_aux = pos_setor + 3;    //recebe o ultimo setor do cluster atual
@@ -199,6 +174,7 @@ int write(){
 				printf("Espaço em disco insuficiente\n");
 				fat.setores[pos_setor_aux].eof = 1;
 				apagar_arquivo(index_arquivo); //faz mais sentido apagar o arquivo se ele nao cabe inteiro
+				pressione_enter();
 				return 0;
 			}
 
@@ -220,8 +196,8 @@ int write(){
 	/*calcular o tempo gasto*/
 	
     printf("Tempo final: %dms\n", tempo);
-
 	fclose(arq);	
+	pressione_enter();
 	return 1;
 }
 
@@ -260,6 +236,7 @@ void ler_arquivo(int pos_arquivo){
 	/*calcular o tempo gasto*/
     printf("Tempo final: %dms\n", tempo);
 	fclose(arq);
+	pressione_enter();
 }
 
 /*A funcao e responsavel por pedir o nome do arquivo para leitura,
@@ -269,6 +246,7 @@ int read(){
 
 	printf("Qual arquivo ler:\n");
 	scanf("%s", nome_arquivo);
+	getchar();
 
 	/*Procura na lista de arquivos se o arquivo pedido existe, se
 	sim retorna 1, caso contrario retorna 0*/
@@ -279,13 +257,15 @@ int read(){
 		}
 	}
 	printf("Arquivo invalido\n");
+	pressione_enter();
 	return 0;
 }
 
+/* funcao recebe o indice do arquivo a ser apagado, escrevendo \0 em seu nome marcando-o como vazio*/
 void apagar_arquivo(int i){
 	int eof = 0;
 	int setor_atual = fat.lista_arquivos[i].first_sector;
-	fat.lista_arquivos[i].file_name[0] = '\0';
+	fat.lista_arquivos[i].file_name[0] = '\0'; //\0 indica arquivo vazio
 	do{
 		fat.setores[setor_atual].used = 0;
 		if(fat.setores[setor_atual].eof != 1)
@@ -297,23 +277,28 @@ void apagar_arquivo(int i){
 	}while(eof == 0);
 }
 
+
+/*funcao principal para apagar, pega o nome do arquivo e procura para ver se arquivo existe, se sim, apaga efetivamente com a funcao apagar_arquivo */
 int erase(){
 	char nome_arquivo[100];
 
 	printf("Qual arquivo apagar? \n");
 	scanf("%s", nome_arquivo);
+	getchar();
 
 	for(int i = 0; i < MAX_ARQUIVOS; i++){
-		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo) == 0){ //comparar essas duas palavras -> está dando erro
+		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo) == 0){ //compara nome de cada arquivo com o nome lido
 			apagar_arquivo(i);
+			pressione_enter();
 			return 1;
 		}
 	}
 	printf("Arquivo invalido\n");
+	pressione_enter();
 	return 0;
 }
 
-
+/* calcula o tamanho do arquivo passado pelo indice, contando cada setor e multiplicando por 512 bytes */
 int calcula_tamanho(int indice){
 	int tamanho = 2; //ja contando o primeiro e o EOF
 	int setor_atual = fat.lista_arquivos[indice].first_sector;
@@ -325,6 +310,7 @@ int calcula_tamanho(int indice){
 }
 
 int show_FAT(){
+	getchar();
 	printf("NOME:\t\tTAMANHO EM DISCO:\tLOCALIZACAO:\n");
 	
 	//itera sobre todos as posicoes, mas para quando ja encontrou todos os arquivos
@@ -342,6 +328,7 @@ int show_FAT(){
 			printf("%d \n", pos_leitura); //o ultimo setor
 		}
 	}
+	pressione_enter();
 	return 0;
 }
 
