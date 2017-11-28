@@ -194,6 +194,8 @@ int write(){
 	fat.setores[pos_setor + 3].eof = 1;
 
 	/*calcular o tempo gasto*/
+
+
 	
     printf("Tempo final: %dms\n", tempo);
 	fclose(arq);	
@@ -212,6 +214,7 @@ void ler_arquivo(int pos_arquivo){
 	tempo += T_SEEK_MEDIO - T_SEEK_MIN; //desconta um seek minimo pro calculo dentro do while bater
 	arq = fopen("SAIDA.TXT", "w");
 	int p_cilindro_inicial;
+	pos_arquivo = fat.lista_arquivos[pos_arquivo].first_sector;
 	do{
 		calcularPos(&p_cilindro, &p_trilha, &p_setor, pos_arquivo * 512);
 		if(p_cilindro != p_cilindro_inicial){ //se mudou de cilindro, adicionar T_SEEK_MIN
@@ -250,7 +253,7 @@ int read(){
 
 	/*Procura na lista de arquivos se o arquivo pedido existe, se
 	sim retorna 1, caso contrario retorna 0*/
-	for(int i = 0; i < fat.total_arquivos; i++){
+	for(int i = 0; i < MAX_ARQUIVOS; i++){
 		if(strcmp(fat.lista_arquivos[i].file_name, nome_arquivo) == 0){
 			ler_arquivo(i);
 			return 1;
@@ -264,10 +267,14 @@ int read(){
 /* funcao recebe o indice do arquivo a ser apagado, escrevendo \0 em seu nome marcando-o como vazio*/
 void apagar_arquivo(int i){
 	int eof = 0;
+	int p_cilindro, p_trilha, p_setor;
 	int setor_atual = fat.lista_arquivos[i].first_sector;
 	fat.lista_arquivos[i].file_name[0] = '\0'; //\0 indica arquivo vazio
 	do{
 		fat.setores[setor_atual].used = 0;
+		calcularPos(&p_cilindro, &p_trilha, &p_setor, setor_atual * 512);
+		for(int j=0; j<512; j++)
+			cilindros[p_cilindro].track[p_trilha].sector[p_setor + i].bytes_s[j] = '\0';
 		if(fat.setores[setor_atual].eof != 1)
 			setor_atual = fat.setores[setor_atual].next;
 		else{
